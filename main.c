@@ -8,7 +8,21 @@
 #include <unistd.h> // For sleep() on Unix-like systems
 #endif
 
-// Function for Caesar Cipher encryption
+// Function prototypes
+void caesar_cipher(char *message, int shift);
+
+void xor_cipher(char *message, char key);
+
+void caesar_cipher_decrypt(char *message, int shift);
+
+void xor_cipher_decrypt(char *message, char key);
+
+void copy_to_clipboard(const char *text);
+
+void encrypt();
+
+void decrypt();
+
 void caesar_cipher(char *message, int shift) {
     int length = strlen(message);
     for (int i = 0; i < length; i++) {
@@ -19,52 +33,27 @@ void caesar_cipher(char *message, int shift) {
     }
 }
 
-// Function for XOR Cipher encryption
 void xor_cipher(char *message, char key) {
     int length = strlen(message);
     for (int i = 0; i < length; i++) {
-        message[i] = message[i] ^ key;
+        message[i] ^= key;
     }
 }
 
-// Function to copy text to clipboard
-void copy_to_clipboard(const char *text) {
-#if defined(_WIN32) || defined(_WIN64)
-    FILE *clipboard = _popen("clip", "w");
-    if (clipboard) {
-        fputs(text, clipboard);
-        _pclose(clipboard);
-        printf("Encrypted message copied to clipboard.\n");
-    } else {
-        printf("Failed to copy to clipboard.\n");
+void caesar_cipher_decrypt(char *message, int shift) {
+    int length = strlen(message);
+    for (int i = 0; i < length; i++) {
+        if (isalpha(message[i])) {
+            char base = (isupper(message[i])) ? 'A' : 'a';
+            message[i] = (message[i] - base - shift + 26) % 26 + base;
+        }
     }
-#elif defined(__APPLE__) || defined(__MACH__)
-    FILE *clipboard = popen("pbcopy", "w");
-    if (clipboard) {
-        fputs(text, clipboard);
-        pclose(clipboard);
-        printf("Encrypted message copied to clipboard.\n");
-    } else {
-        printf("Failed to copy to clipboard.\n");
-    }
-#elif defined(__linux__)
-    FILE *clipboard = popen("xclip -selection clipboard", "w");
-    if (!clipboard) {
-        clipboard = popen("xsel --clipboard --input", "w");
-    }
-    if (clipboard) {
-        fputs(text, clipboard);
-        pclose(clipboard);
-        printf("Encrypted message copied to clipboard.\n");
-    } else {
-        printf("Failed to copy to clipboard. Ensure xclip or xsel is installed.\n");
-    }
-#else
-    printf("Clipboard functionality not supported on this OS.\n");
-#endif
 }
 
-// Encryption function
+void xor_cipher_decrypt(char *message, char key) {
+    xor_cipher(message, key); // XOR decryption is symmetric
+}
+
 void encrypt() {
     char *message = NULL;
     size_t buffer_size = 0;
@@ -73,8 +62,9 @@ void encrypt() {
     char xor_key = 'K'; // Key for XOR cipher
 
 #if defined(_WIN32) || defined(_WIN64)
+    system("color 0a");
     system("cls");
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+#else
     system("clear");
 #endif
 
@@ -89,30 +79,28 @@ START:
     getchar();
 
 #if defined(_WIN32) || defined(_WIN64)
+    system("color 0c");
     system("cls");
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+#else
     system("clear");
 #endif
 
-    printf("Please enter your message:\n");
+    printf("Please enter your message to encrypt:\n");
 
 #if defined(_WIN32) || defined(_WIN64)
-    message = (char *)malloc(1024 * sizeof(char));
+    message = (char *) malloc(1024 * sizeof(char));
     if (fgets(message, 1024, stdin) == NULL) {
         printf("Error reading input.\n");
         free(message);
         return;
     }
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+#else
     ssize_t length = getline(&message, &buffer_size, stdin);
     if (length == -1) {
         printf("Error reading input.\n");
         free(message);
         return;
     }
-#else
-    printf("Unsupported OS.\n");
-    return;
 #endif
 
     ssize_t length = strlen(message);
@@ -131,8 +119,9 @@ START:
     }
 
 #if defined(_WIN32) || defined(_WIN64)
+    system("color 0c");
     system("cls");
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+#else
     system("clear");
 #endif
 
@@ -140,11 +129,136 @@ START:
     copy_to_clipboard(message);
     free(message);
 
-    // Wait for 3 seconds
 #if defined(_WIN32) || defined(_WIN64)
-    Sleep(3000); // Sleep takes milliseconds on Windows
+    Sleep(3000);
 #else
-    sleep(3); // Sleep takes seconds on Unix-like systems
+    sleep(3);
+#endif
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+
+void copy_to_clipboard(const char *text) {
+    const size_t length = strlen(text) + 1; // Include null terminator
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, length);
+    if (hMem == NULL) {
+        printf("Failed to allocate memory for clipboard.\n");
+        return;
+    }
+
+    memcpy(GlobalLock(hMem), text, length);
+    GlobalUnlock(hMem);
+
+    if (!OpenClipboard(NULL)) {
+        printf("Failed to open clipboard.\n");
+        GlobalFree(hMem);
+        return;
+    }
+
+    EmptyClipboard();
+    SetClipboardData(CF_TEXT, hMem);
+    CloseClipboard();
+
+    printf("Text copied to clipboard!\n");
+}
+#else
+#include <stdio.h>
+#include <stdlib.h>
+void copy_to_clipboard(const char *text) {
+    // Use the `xclip` command on Unix-like systems
+    FILE *clipboard = popen("xclip -selection clipboard", "w");
+    if (clipboard == NULL) {
+        printf("Failed to access clipboard.\n");
+        return;
+    }
+
+    fprintf(clipboard, "%s", text);
+    pclose(clipboard);
+
+    printf("Text copied to clipboard!\n");
+}
+#endif
+
+
+void decrypt() {
+    char *message = NULL;
+    size_t buffer_size = 0;
+    int choice;
+    int shift = 3; // Shift for Caesar cipher
+    char xor_key = 'K'; // Key for XOR cipher
+
+#if defined(_WIN32) || defined(_WIN64)
+    system("cls");
+    system("color 0a");
+#else
+    system("clear");
+#endif
+
+START:
+    printf("Please choose a decryption algorithm:\n");
+    printf("1. Caesar Cipher\n");
+    printf("2. XOR Cipher\n");
+    printf("Enter your choice (1 or 2): ");
+    scanf("%d", &choice);
+
+    // Consume newline character
+    getchar();
+
+#if defined(_WIN32) || defined(_WIN64)
+    system("cls");
+#else
+    system("clear");
+#endif
+
+    printf("Please enter your encrypted message:\n");
+
+#if defined(_WIN32) || defined(_WIN64)
+    message = (char *) malloc(1024 * sizeof(char));
+    if (fgets(message, 1024, stdin) == NULL) {
+        printf("Error reading input.\n");
+        free(message);
+        return;
+    }
+#else
+    ssize_t length = getline(&message, &buffer_size, stdin);
+    if (length == -1) {
+        printf("Error reading input.\n");
+        free(message);
+        return;
+    }
+#endif
+
+    ssize_t length = strlen(message);
+    if (message[length - 1] == '\n') {
+        message[length - 1] = '\0';
+    }
+
+    if (choice == 1) {
+        caesar_cipher_decrypt(message, shift);
+    } else if (choice == 2) {
+        xor_cipher_decrypt(message, xor_key);
+    } else {
+        printf("Invalid choice. Try again.\n");
+        free(message);
+        goto START;
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    system("color 0c");
+    system("cls");
+#else
+    system("clear");
+#endif
+
+    printf("Decrypted message: %s\n", message);
+    copy_to_clipboard(message);
+    free(message);
+
+#if defined(_WIN32) || defined(_WIN64)
+    Sleep(3000);
+#else
+    sleep(3);
 #endif
 }
 
@@ -152,16 +266,16 @@ int main(void) {
     int command;
 
 #if defined(_WIN32) || defined(_WIN64)
-    system("cls");
     system("color 0a");
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+    system("cls");
+#else
     system("clear");
 #endif
 
     while (1) {
         printf("CHOOSE ONE OF THESE:\n");
         printf("1: Encrypt\n");
-        printf("2: Decrypt (Not implemented yet)\n");
+        printf("2: Decrypt\n");
         printf("0: EXIT\n");
         scanf("%d", &command);
 
@@ -170,7 +284,7 @@ int main(void) {
                 encrypt();
                 break;
             case 2:
-                printf("Decrypt functionality is not implemented yet.\n");
+                decrypt();
                 break;
             case 0:
                 printf("Exiting the program.\n");
@@ -181,7 +295,7 @@ int main(void) {
 
 #if defined(_WIN32) || defined(_WIN64)
         system("cls");
-#elif defined(__APPLE__) || defined(__MACH__) || defined(__unix__) || defined(__linux__)
+#else
         system("clear");
 #endif
     }
